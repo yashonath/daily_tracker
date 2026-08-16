@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Tracker — Don't lie to yourself</title>
+<meta name="description" content="Daily Tracker is an open-source Android app for honest daily tracking: habits, todos, water, journal, and a dashboard that shows your real streak — not a curated one.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0d0b09;
+    --bg-alt:#141110;
+    --surface:#1b1714;
+    --surface-2:#211c18;
+    --border:rgba(242,233,216,0.10);
+    --border-strong:rgba(242,233,216,0.22);
+    --paper:#f2e9d8;
+    --paper-dim:#cabfa9;
+    --muted:#8c8577;
+    --amber:#e8a33d;
+    --amber-dim:rgba(232,163,61,0.14);
+    --green:#4f9d6c;
+    --green-dim:rgba(79,157,108,0.16);
+    --font-mono:'IBM Plex Mono', ui-monospace, monospace;
+    --font-body:'Inter', -apple-system, sans-serif;
+    --maxw:1120px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--bg);
+    color:var(--paper);
+    font-family:var(--font-body);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  img,svg{display:block; max-width:100%;}
+  a{color:inherit; text-decoration:none;}
+  ul{list-style:none;}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 32px;}
+  ::selection{background:var(--amber); color:#241a08;}
+
+  a:focus-visible, button:focus-visible{
+    outline:2px solid var(--amber);
+    outline-offset:3px;
+    border-radius:4px;
+  }
+
+  /* background texture */
+  .grain{
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:radial-gradient(rgba(242,233,216,0.035) 1px, transparent 1px);
+    background-size:26px 26px;
+    opacity:0.5;
+  }
+  .glow{
+    position:fixed; z-index:0; pointer-events:none;
+    width:640px; height:640px; border-radius:50%;
+    filter:blur(120px);
+    opacity:0.16;
+    will-change:transform;
+  }
+  .glow-amber{ top:-180px; left:-120px; background:var(--amber); }
+  .glow-green{ top:20%; right:-200px; background:var(--green); }
+
+  /* ---------- NAV ---------- */
+  header{
+    position:sticky; top:0; z-index:50;
+    border-bottom:1px solid transparent;
+    transition:background .3s ease, border-color .3s ease, backdrop-filter .3s ease;
+  }
+  header.scrolled{
+    background:rgba(13,11,9,0.72);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    border-bottom-color:var(--border);
+  }
+  nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 0;
+  }
+  .logo{
+    display:flex; align-items:center; gap:10px;
+    font-family:var(--font-mono); font-weight:600; font-size:15px;
+    letter-spacing:0.02em;
+  }
+  .logo .dot{
+    width:8px; height:8px; border-radius:50%;
+    background:var(--green);
+    box-shadow:0 0 0 3px var(--green-dim);
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{opacity:1;} 50%{opacity:0.35;}
+  }
+  .nav-links{
+    display:flex; align-items:center; gap:36px;
+    font-size:14px; color:var(--paper-dim);
+  }
+  .nav-links a{
+    position:relative; padding:4px 0; transition:color .2s ease;
+  }
+  .nav-links a:hover{color:var(--paper);}
+  .nav-links a::after{
+    content:''; position:absolute; left:0; bottom:-2px; width:0; height:1px;
+    background:var(--amber); transition:width .25s ease;
+  }
+  .nav-links a:hover::after{width:100%;}
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:var(--font-mono); font-size:13px; font-weight:500;
+    padding:10px 18px; border-radius:8px;
+    border:1px solid var(--border-strong);
+    transition:border-color .2s ease, background .2s ease, transform .2s ease;
+    white-space:nowrap;
+  }
+  .btn-primary{
+    background:var(--paper); color:#1a1510; border-color:var(--paper);
+  }
+  .btn-primary:hover{ transform:translateY(-1px); box-shadow:0 8px 24px -8px rgba(242,233,216,0.35); }
+  .btn-ghost{ color:var(--paper); }
+  .btn-ghost:hover{ border-color:var(--border-strong); background:var(--surface); }
+  .nav-cta{ display:none; }
+  @media(min-width:640px){ .nav-cta{ display:inline-flex; } }
+
+  .menu-toggle{
+    display:none; background:none; border:none; color:var(--paper);
+    font-size:22px; cursor:pointer; padding:4px;
+  }
+  @media(max-width:760px){
+    .nav-links{
+      position:fixed; top:64px; left:0; right:0; z-index:49;
+      flex-direction:column; align-items:flex-start; gap:0;
+      background:rgba(13,11,9,0.98); backdrop-filter:blur(14px);
+      border-bottom:1px solid var(--border);
+      max-height:0; overflow:hidden; opacity:0;
+      transition:max-height .3s ease, opacity .3s ease;
+    }
+    .nav-links.open{ max-height:280px; opacity:1; }
+    .nav-links a{ padding:16px 32px; width:100%; border-bottom:1px solid var(--border); }
+    .menu-toggle{ display:block; }
+  }
+
+  section{ position:relative; z-index:1; padding:120px 0; }
+  @media(max-width:760px){ section{ padding:80px 0; } }
+
+  .eyebrow{
+    font-family:var(--font-mono); font-size:12px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--amber);
+    display:flex; align-items:center; gap:10px; margin-bottom:20px;
+  }
+  .eyebrow::before{
+    content:''; width:20px; height:1px; background:var(--amber);
+  }
+
+  h1,h2,h3{ font-weight:700; letter-spacing:-0.02em; }
+
+  /* ---------- HERO ---------- */
+  .hero{ padding-top:88px; padding-bottom:60px; }
+  .hero-grid{
+    display:grid; grid-template-columns:1.05fr 0.95fr; gap:64px; align-items:center;
+  }
+  @media(max-width:920px){ .hero-grid{ grid-template-columns:1fr; gap:56px; } }
+
+  .hero h1{
+    font-size:clamp(42px, 6vw, 68px); line-height:1.02; color:var(--paper);
+  }
+  .hero-tagline{
+    font-family:var(--font-mono); font-size:clamp(17px, 2vw, 21px);
+    color:var(--amber); margin-top:18px; letter-spacing:-0.01em;
+  }
+  .hero p.desc{
+    margin-top:22px; font-size:16px; color:var(--paper-dim); max-width:480px;
+  }
+  .hero-actions{ display:flex; gap:14px; margin-top:36px; flex-wrap:wrap; }
+
+  .hero-stats{
+    display:flex; gap:28px; margin-top:48px; padding-top:28px;
+    border-top:1px solid var(--border);
+  }
+  .hero-stats div{ font-family:var(--font-mono); }
+  .hero-stats .num{ font-size:22px; color:var(--paper); font-weight:600; }
+  .hero-stats .lbl{ font-size:12px; color:var(--muted); margin-top:4px; }
+
+  /* phone mockup */
+  .phone-wrap{ display:flex; justify-content:center; }
+  .phone{
+    width:270px; border-radius:34px; border:1px solid var(--border-strong);
+    background:linear-gradient(180deg, var(--surface-2), var(--surface));
+    padding:18px 16px 22px; box-shadow:0 40px 80px -30px rgba(0,0,0,0.7);
+  }
+  .phone-notch{
+    width:60px; height:5px; border-radius:4px; background:var(--border-strong);
+    margin:0 auto 18px;
+  }
+  .phone-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; }
+  .phone-head .t1{ font-family:var(--font-mono); font-size:13px; font-weight:600; }
+  .phone-head .t2{ font-family:var(--font-mono); font-size:11px; color:var(--muted); }
+  .ring-row{ display:flex; gap:10px; margin-bottom:16px; }
+  .ring{
+    flex:1; background:var(--bg-alt); border:1px solid var(--border); border-radius:12px;
+    padding:12px 10px;
+  }
+  .ring .rlabel{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; }
+  .ring .rval{ font-family:var(--font-mono); font-size:17px; color:var(--paper); margin-top:6px; }
+  .ring.streak .rval{ color:var(--amber); }
+  .ring.water .rval{ color:#7db8d9; }
+  .task-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+  .task{
+    display:flex; align-items:center; gap:10px; background:var(--bg-alt);
+    border:1px solid var(--border); border-radius:9px; padding:9px 10px;
+    font-size:12px; color:var(--paper-dim);
+  }
+  .task .box{
+    width:14px; height:14px; border-radius:4px; border:1px solid var(--border-strong);
+    flex-shrink:0;
+  }
+  .task.done .box{ background:var(--green); border-color:var(--green); }
+  .task.done{ color:var(--paper); }
+  .mini-heat{
+    display:grid; grid-template-columns:repeat(12, 1fr); gap:3px;
+  }
+  .mini-heat i{
+    aspect-ratio:1; border-radius:2px; background:var(--bg-alt); border:1px solid var(--border);
+  }
+
+  /* signature interactive ledger strip */
+  .ledger-strip{
+    margin-top:64px; border:1px solid var(--border); border-radius:14px;
+    background:var(--surface); padding:24px 26px;
+  }
+  .ledger-strip .lhead{
+    display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px;
+    flex-wrap:wrap; gap:8px;
+  }
+  .ledger-strip .lhead .lt{ font-family:var(--font-mono); font-size:13px; color:var(--paper); }
+  .ledger-strip .lhead .ls{ font-family:var(--font-mono); font-size:12px; color:var(--muted); }
+  .heatgrid{
+    display:grid; grid-template-columns:repeat(38, 1fr); gap:4px;
+  }
+  @media(max-width:640px){ .heatgrid{ grid-template-columns:repeat(19, 1fr); } }
+  .heatgrid i{
+    aspect-ratio:1; border-radius:2px; background:var(--bg-alt);
+    border:1px solid var(--border); transition:background .5s ease, transform .15s ease;
+    cursor:pointer;
+  }
+  .heatgrid i:hover{ transform:scale(1.25); border-color:var(--border-strong); }
+  .heatgrid i.lit-amber{ background:var(--amber); border-color:var(--amber); }
+  .heatgrid i.lit-green{ background:var(--green); border-color:var(--green); }
+  .ledger-legend{
+    display:flex; gap:18px; margin-top:16px; font-family:var(--font-mono); font-size:11px; color:var(--muted);
+  }
+  .ledger-legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .swatch{ width:9px; height:9px; border-radius:2px; display:inline-block; }
+
+  /* ---------- REVEAL ---------- */
+  .reveal{ opacity:0; transform:translateY(24px); transition:opacity .7s ease, transform .7s ease; }
+  .reveal.visible{ opacity:1; transform:translateY(0); }
+  @media (prefers-reduced-motion: reduce){
+    .reveal{ opacity:1; transform:none; transition:none; }
+    html{ scroll-behavior:auto; }
+    .logo .dot{ animation:none; }
+  }
+
+  /* ---------- SECTION HEADERS ---------- */
+  .sec-head{ max-width:640px; margin-bottom:56px; }
+  .sec-head h2{ font-size:clamp(28px, 4vw, 38px); color:var(--paper); }
+  .sec-head p{ margin-top:14px; color:var(--paper-dim); font-size:16px; }
+
+  /* ---------- MODULES ---------- */
+  .modules-grid{
+    display:grid; grid-template-columns:repeat(3, 1fr); gap:1px;
+    background:var(--border); border:1px solid var(--border); border-radius:16px; overflow:hidden;
+  }
+  @media(max-width:900px){ .modules-grid{ grid-template-columns:repeat(2, 1fr); } }
+  @media(max-width:600px){ .modules-grid{ grid-template-columns:1fr; } }
+  .module-card{
+    background:var(--surface); padding:32px 28px; position:relative;
+    transition:background .25s ease;
+  }
+  .module-card:hover{ background:var(--surface-2); }
+  .module-card .mtag{
+    font-family:var(--font-mono); font-size:11px; color:var(--muted); letter-spacing:0.08em;
+    text-transform:uppercase; margin-bottom:18px; display:block;
+  }
+  .module-card .micon{
+    width:36px; height:36px; margin-bottom:18px; color:var(--amber);
+  }
+  .module-card h3{ font-size:18px; color:var(--paper); margin-bottom:10px; }
+  .module-card p{ font-size:14px; color:var(--paper-dim); line-height:1.6; }
+
+  /* ---------- ABOUT / PHILOSOPHY ---------- */
+  .about{
+    display:grid; grid-template-columns:0.9fr 1.1fr; gap:64px; align-items:start;
+  }
+  @media(max-width:860px){ .about{ grid-template-columns:1fr; gap:40px; } }
+  .about-quote{
+    font-family:var(--font-mono); font-size:clamp(24px, 3.2vw, 32px); line-height:1.35;
+    color:var(--paper); letter-spacing:-0.01em;
+  }
+  .about-quote span{ color:var(--amber); }
+  .about-body p{ color:var(--paper-dim); font-size:16px; margin-bottom:18px; }
+  .about-body p:last-child{ margin-bottom:0; }
+
+  /* ---------- LEDGER FACTS (tech honesty) ---------- */
+  .facts{
+    border:1px solid var(--border); border-radius:16px; background:var(--surface);
+    overflow:hidden;
+  }
+  .fact-row{
+    display:grid; grid-template-columns:220px 1fr; gap:24px;
+    padding:20px 28px; border-bottom:1px solid var(--border);
+    font-size:14px;
+  }
+  .fact-row:last-child{ border-bottom:none; }
+  @media(max-width:600px){ .fact-row{ grid-template-columns:1fr; gap:6px; } }
+  .fact-row .fk{ font-family:var(--font-mono); color:var(--amber); }
+  .fact-row .fv{ color:var(--paper-dim); }
+
+  /* ---------- CTA ---------- */
+  .cta-box{
+    border:1px solid var(--border-strong); border-radius:20px;
+    background:linear-gradient(180deg, var(--surface), var(--bg-alt));
+    padding:72px 48px; text-align:center;
+  }
+  @media(max-width:600px){ .cta-box{ padding:52px 24px; } }
+  .cta-box h2{ font-size:clamp(28px, 4vw, 40px); color:var(--paper); margin-bottom:16px; }
+  .cta-box p{ color:var(--paper-dim); font-size:16px; max-width:480px; margin:0 auto 32px; }
+
+  /* ---------- FOOTER ---------- */
+  footer{ border-top:1px solid var(--border); padding:48px 0; }
+  .foot-grid{
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:20px;
+  }
+  .foot-left{ display:flex; align-items:center; gap:10px; font-family:var(--font-mono); font-size:13px; color:var(--muted); }
+  .foot-right{ display:flex; gap:24px; font-size:13px; color:var(--muted); }
+  .foot-right a:hover{ color:var(--paper); }
+</style>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="glow glow-amber" id="glowAmber" aria-hidden="true"></div>
+<div class="glow glow-green" id="glowGreen" aria-hidden="true"></div>
+
+<header id="siteHeader">
+  <div class="wrap">
+    <nav>
+      <a href="#top" class="logo"><span class="dot" aria-hidden="true"></span>DAILY_TRACKER</a>
+      <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation menu" aria-expanded="false">&#9776;</button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#modules">Modules</a></li>
+        <li><a href="#about">About</a></li>
+        <li><a href="#" data-gh>GitHub</a></li>
+      </ul>
+      <a href="#" class="btn btn-primary nav-cta" data-gh>View on GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow">Android &middot; Flutter &middot; local-first</p>
+          <h1>Daily&nbsp;Tracker</h1>
+          <p class="hero-tagline">"Don't lie to yourself."</p>
+          <p class="desc">A personal tracking app for habits, todos, water, and journaling — with a heatmap that shows the real shape of your days, streaks and all. No accounts, no cloud, no curated version of the truth.</p>
+          <div class="hero-actions">
+            <a href="#" class="btn btn-primary" data-gh>View on GitHub &rarr;</a>
+            <a href="#modules" class="btn btn-ghost">See the modules</a>
+          </div>
+          <div class="hero-stats">
+            <div><div class="num">6</div><div class="lbl">core modules</div></div>
+            <div><div class="num">0</div><div class="lbl">accounts required</div></div>
+            <div><div class="num">100%</div><div class="lbl">on-device data</div></div>
+          </div>
+        </div>
+
+        <div class="phone-wrap reveal">
+          <div class="phone">
+            <div class="phone-notch"></div>
+            <div class="phone-head">
+              <span class="t1">Today</span>
+              <span class="t2">Thu 13 Aug</span>
+            </div>
+            <div class="ring-row">
+              <div class="ring streak">
+                <div class="rlabel">Streak</div>
+                <div class="rval">12d</div>
+              </div>
+              <div class="ring water">
+                <div class="rlabel">Water</div>
+                <div class="rval">6/8</div>
+              </div>
+            </div>
+            <div class="task-list">
+              <div class="task done"><span class="box"></span>Morning pages</div>
+              <div class="task done"><span class="box"></span>No sugar today</div>
+              <div class="task"><span class="box"></span>Read 20 pages</div>
+            </div>
+            <div class="mini-heat" id="miniHeat" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ledger-strip reveal">
+        <div class="lhead">
+          <span class="lt">activity_heatmap.log</span>
+          <span class="ls">hover a day &mdash; this is the actual heatmap logic, not a screenshot</span>
+        </div>
+        <div class="heatgrid" id="heatGrid"></div>
+        <div class="ledger-legend">
+          <span><i class="swatch" style="background:var(--bg-alt); border:1px solid var(--border);"></i>nothing logged</span>
+          <span><i class="swatch" style="background:var(--amber);"></i>partial day</span>
+          <span><i class="swatch" style="background:var(--green);"></i>fully completed</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MODULES -->
+  <section id="modules">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="eyebrow">What it does</p>
+        <h2>Six modules. One honest dashboard.</h2>
+        <p>Every module writes to the same local store, so the heatmap and dashboard reflect exactly what actually happened — not what you meant to do.</p>
+      </div>
+
+      <div class="modules-grid">
+        <div class="module-card reveal">
+          <span class="mtag">Module 01</span>
+          <svg class="micon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg>
+          <h3>Habits</h3>
+          <p>Weekly habit tracking, anchored to Monday. Each habit rolls over on schedule automatically, so a habit you check off on Sunday doesn't quietly bleed into next week.</p>
+        </div>
+
+        <div class="module-card reveal">
+          <span class="mtag">Module 02</span>
+          <svg class="micon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>
+          <h3>Todos</h3>
+          <p>Prioritized, day-to-day tasks that sit next to your habits instead of buried in a separate app. Set what matters most and clear it off the list.</p>
+        </div>
+
+        <div class="module-card reveal">
+          <span class="mtag">Module 03</span>
+          <svg class="micon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3s6 6.5 6 11a6 6 0 1 1-12 0c0-4.5 6-11 6-11z"/></svg>
+          <h3>Water</h3>
+          <p>Quick ml-preset logging and OS-level reminders that anchor to your first drink of the day, then space themselves out until you hit your goal.</p>
+        </div>
+
+        <div class="module-card reveal">
+          <span class="mtag">Module 04</span>
+          <svg class="micon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h13a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4z"/><path d="M4 17a3 3 0 0 0 3 3h13"/><path d="M8 8h8M8 12h8"/></svg>
+          <h3>Journal</h3>
+          <p>A plain daily entry for the things a checkbox can't capture. Titled, timestamped, and stored alongside everything else that happened that day.</p>
+        </div>
+
+        <div class="module-card reveal">
+          <span class="mtag">Module 05</span>
+          <svg class="micon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20V10M11 20V4M18 20v-7"/><path d="M2 20h20"/></svg>
+          <h3>Dashboard</h3>
+          <p>Charts built from your real logs — completion rates, water trends, streak history — so progress is something you can see, not something you assume.</p>
+        </div>
+
+        <div class="module-card reveal">
+          <span class="mtag">Module 06</span>
+          <svg class="micon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="4" height="4" rx="1"/><rect x="10" y="3" width="4" height="4" rx="1"/><rect x="17" y="3" width="4" height="4" rx="1"/><rect x="3" y="10" width="4" height="4" rx="1"/><rect x="10" y="10" width="4" height="4" rx="1"/><rect x="17" y="10" width="4" height="4" rx="1"/><rect x="3" y="17" width="4" height="4" rx="1"/><rect x="10" y="17" width="4" height="4" rx="1"/><rect x="17" y="17" width="4" height="4" rx="1"/></svg>
+          <h3>Activity heatmap</h3>
+          <p>A calendar-style grid, color-coded by how much of the day you actually finished, with the specific tasks from any day on tap. No day gets rewritten.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ABOUT -->
+  <section id="about">
+    <div class="wrap">
+      <div class="about">
+        <div class="reveal">
+          <p class="eyebrow">Philosophy</p>
+          <p class="about-quote">Simple tracking.<br>Meaningful progress.<br><span>No self-deception.</span></p>
+        </div>
+        <div class="about-body reveal">
+          <p>Most tracking apps are optimized to make you feel good about your data. Daily Tracker is optimized to make your data accurate — a completed habit looks different from an ignored one, a partial day looks different from a perfect one, and the heatmap never smooths that over.</p>
+          <p>It's a solo, local-first Android project: everything is stored on your device with shared preferences, there's no account to create and nothing to sync to a server. The tradeoff is real — you own the data and the honesty that comes with it.</p>
+          <p>It's built with Flutter, iterated on in focused sessions, and shipped as an open Android project for anyone who wants the same kind of honest log for their own days.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEDGER FACTS -->
+  <section id="facts">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="eyebrow">Under the hood</p>
+        <h2>Built plainly, on purpose.</h2>
+      </div>
+      <div class="facts reveal">
+        <div class="fact-row"><span class="fk">Platform</span><span class="fv">Android, built with Flutter</span></div>
+        <div class="fact-row"><span class="fk">Storage</span><span class="fv">On-device shared preferences &mdash; no server, no sync, no account</span></div>
+        <div class="fact-row"><span class="fk">Habit resets</span><span class="fv">Monday-anchored weekly rollover, checked on load, toggle, and tab focus</span></div>
+        <div class="fact-row"><span class="fk">Reminders</span><span class="fv">Anchor-based scheduling from your first water log of the day</span></div>
+        <div class="fact-row"><span class="fk">License</span><span class="fv">Open source &mdash; read the code, fork it, or run it as-is</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section id="cta">
+    <div class="wrap">
+      <div class="cta-box reveal">
+        <p class="eyebrow" style="justify-content:center;">Open source</p>
+        <h2>Want to explore the project?</h2>
+        <p>Daily Tracker is open source. Read the code, follow development, or open an issue on GitHub.</p>
+        <a href="#" class="btn btn-primary" data-gh>View the GitHub repository &rarr;</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap foot-grid">
+    <div class="foot-left"><span class="dot" style="width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;"></span>DAILY_TRACKER &mdash; built for better days.</div>
+    <div class="foot-right">
+      <a href="#" data-gh>GitHub</a>
+      <a href="#top">Back to top</a>
+      <span id="year"></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // ---- Replace this one constant to point every GitHub button/link at your repo ----
+  const GITHUB_URL = "YOUR_GITHUB_REPOSITORY_URL";
+  document.querySelectorAll('[data-gh]').forEach(el => el.href = GITHUB_URL);
+
+  document.getElementById('year').textContent = '\u00A9 ' + new Date().getFullYear();
+
+  // sticky header state
+  const header = document.getElementById('siteHeader');
+  const onScroll = () => header.classList.toggle('scrolled', window.scrollY > 12);
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  // mobile menu
+  const menuToggle = document.getElementById('menuToggle');
+  const navLinks = document.getElementById('navLinks');
+  menuToggle.addEventListener('click', () => {
+    const open = navLinks.classList.toggle('open');
+    menuToggle.setAttribute('aria-expanded', open);
+  });
+  navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+    navLinks.classList.remove('open');
+    menuToggle.setAttribute('aria-expanded', 'false');
+  }));
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // scroll reveal
+  const revealEls = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window && !reduceMotion) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.15 });
+    revealEls.forEach(el => io.observe(el));
+  } else {
+    revealEls.forEach(el => el.classList.add('visible'));
+  }
+
+  // parallax glows (mouse-follow, subtle)
+  if (!reduceMotion) {
+    const glowAmber = document.getElementById('glowAmber');
+    const glowGreen = document.getElementById('glowGreen');
+    let mx = 0, my = 0, tx = 0, ty = 0;
+    window.addEventListener('mousemove', (e) => {
+      mx = (e.clientX / window.innerWidth - 0.5) * 40;
+      my = (e.clientY / window.innerHeight - 0.5) * 40;
+    }, { passive: true });
+    function loop(){
+      tx += (mx - tx) * 0.04;
+      ty += (my - ty) * 0.04;
+      glowAmber.style.transform = `translate(${tx}px, ${ty}px)`;
+      glowGreen.style.transform = `translate(${-tx * 0.6}px, ${-ty * 0.6}px)`;
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    let sy = 0;
+    window.addEventListener('scroll', () => {
+      sy = window.scrollY;
+      glowAmber.style.marginTop = (sy * -0.08) + 'px';
+      glowGreen.style.marginTop = (sy * -0.04) + 'px';
+    }, { passive: true });
+  }
+
+  // mini heat (phone mockup) — static-ish pattern
+  const miniHeat = document.getElementById('miniHeat');
+  const miniPattern = [0,1,2,0,1,1,0,2,1,0,2,1, 1,2,0,1,0,2,1,1,0,2,1,0, 0,1,2,1,2,0,1,0,2,1,1,0];
+  miniPattern.forEach(v => {
+    const i = document.createElement('i');
+    if (v === 1) i.style.background = 'var(--amber-dim)';
+    if (v === 2) i.style.background = 'var(--green-dim)';
+    miniHeat.appendChild(i);
+  });
+
+  // signature interactive heatmap strip
+  const heatGrid = document.getElementById('heatGrid');
+  const CELLS = 190; // ~5 rows x 38 cols, echoes a real contribution graph
+  const cellEls = [];
+  for (let n = 0; n < CELLS; n++) {
+    const i = document.createElement('i');
+    i.tabIndex = 0;
+    i.setAttribute('role', 'img');
+    heatGrid.appendChild(i);
+    cellEls.push(i);
+  }
+
+  function randomState() {
+    const r = Math.random();
+    if (r < 0.42) return 0;
+    if (r < 0.74) return 1;
+    return 2;
+  }
+
+  function paint(el, state) {
+    el.classList.remove('lit-amber', 'lit-green');
+    if (state === 1) el.classList.add('lit-amber');
+    if (state === 2) el.classList.add('lit-green');
+    el.setAttribute('aria-label', state === 2 ? 'day fully completed' : state === 1 ? 'day partially completed' : 'no activity logged');
+  }
+
+  function lightUp() {
+    cellEls.forEach((el, idx) => {
+      setTimeout(() => paint(el, randomState()), idx * 4);
+    });
+  }
+
+  if ('IntersectionObserver' in window) {
+    const heatIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          lightUp();
+          heatIO.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.3 });
+    heatIO.observe(heatGrid);
+  } else {
+    lightUp();
+  }
+
+  cellEls.forEach(el => {
+    const setRandom = () => paint(el, randomState());
+    el.addEventListener('mouseenter', setRandom);
+    el.addEventListener('focus', setRandom);
+  });
+</script>
+
+</body>
+</html>
